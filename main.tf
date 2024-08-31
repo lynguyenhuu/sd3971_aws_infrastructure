@@ -28,26 +28,69 @@ resource "aws_vpc" "main" {
   }
 }
 
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+}
+
+
 resource "aws_subnet" "subnet" {
-  count             = length(var.subnet_cidrs)
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = element(var.subnet_cidrs, count.index)
-  availability_zone = element(data.aws_availability_zones.available.names, count.index)
+  count                   = length(var.subnet_cidrs)
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = element(var.subnet_cidrs, count.index)
+  map_public_ip_on_launch = true
+  availability_zone       = element(data.aws_availability_zones.available.names, count.index)
 
   tags = {
     Name = "subnet-${count.index + 1}"
   }
 }
 
+resource "aws_route_table" "route_table" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
+}
+
+resource "aws_route_table_association" "route_table_association" {
+  subnet_id      = aws_subnet.subnet[0].id
+  route_table_id = aws_route_table.route_table.id
+}
+
 
 # EC2 Instance
-resource "aws_instance" "web-server" {
-  ami           = "ami-0d07675d294f17973"
-  instance_type = var.ec2_instance_type
-  subnet_id     = aws_subnet.subnet[0].id
+resource "aws_instance" "default" {
+  ami                         = "ami-0d07675d294f17973"
+  instance_type               = var.ec2_instance_type
+  associate_public_ip_address = true
+  vpc_security_group_ids      = [aws_security_group.allow_ssh_instance_connect.id]
+  subnet_id                   = aws_subnet.subnet[0].id
 
   tags = {
     Name = "SD3971Instance"
+  }
+}
+
+
+resource "aws_security_group" "allow_ssh_instance_connect" {
+  name        = "allow_ssh_instance_connect"
+  description = "Allow SSH inbound traffic from EC2 Instance Connect IP ranges"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["3.0.5.32/29"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
