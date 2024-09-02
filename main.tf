@@ -104,6 +104,14 @@ resource "aws_ecr_repository" "frontend_repo" {
   }
 }
 
+resource "aws_ecr_repository" "backend_repo" {
+  name                 = "backend"
+  image_tag_mutability = "MUTABLE"
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
 
 # EKS Cluster
 module "eks" {
@@ -121,13 +129,14 @@ module "eks" {
       desired_capacity = 2
       max_capacity     = 3
       min_capacity     = 1
+      instance_types   = ["t2.micro"]
 
       instance_type = var.ec2_instance_type
     }
   }
 
   tags = {
-    Environment = "dev"
+    Environment = var.environment
     Name        = var.cluster_name
   }
 }
